@@ -28,17 +28,39 @@ from keras.utils import custom_object_scope
 from .models import *
 
 
-from core.model.model_defination import BPNSGM_CycleGAN
+from core.model.model_defination import InstanceNormalization, ReflectionPadding2D, BioPhysicalLayer, NeuroSymbolicLayer
+
+custom_objects = {
+    'InstanceNormalization': InstanceNormalization,
+    'ReflectionPadding2D': ReflectionPadding2D,
+    'BioPhysicalLayer': BioPhysicalLayer,
+    'NeuroSymbolicLayer': NeuroSymbolicLayer
+}
 
 @csrf_exempt
 def upload_weights(request):
     if request.method == 'POST':
-        user = request.user
+        username = request.POST['username']  # Expect hospital name
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            return JsonResponse({'status': 'Invalid user'}, status=400)
+
         weights_file = request.FILES['weights']
         loss = float(request.POST['loss'])
         time_taken = float(request.POST['time_taken'])
 
-        latest_version = ModelVersion.objects.latest('created_at')
+        try:
+            # Attempt to get the latest version by version_number
+            latest_version = ModelVersion.objects.get(version_number=1)
+        except ModelVersion.DoesNotExist:
+            # If no version with version_number=1, create it
+            print("[+] No version found. Creating version 1.")
+            latest_version = ModelVersion.objects.create(
+                version_number=1,
+                created_at= time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime()) # Assuming you have a `created_at` field
+            )
+            print(f"[+] Created version: {latest_version.version_number}")
 
         update = TrainingUpdate.objects.create(
             client=user,
@@ -50,9 +72,11 @@ def upload_weights(request):
         return JsonResponse({'status': 'weights received'})
 
 
+
 def get_model(request):
-    latest_version = ModelVersion.objects.latest('created_at')
-    filepath = "global_model/bpnsgm_ct_to_mri.h5"
+    # latest_version = ModelVersion.objects.latest('created_at')
+    filepath = "core/global_model/bpnsgm_ct_to_mri.h5"
+    print("model is downloaing")
     with open(filepath, 'rb') as f:
         return HttpResponse(f.read(), content_type="application/h5")
 
@@ -107,32 +131,35 @@ def aggregate_weights(request):
 @csrf_exempt
 def convert_ct_to_mri(request):
     if request.method == 'POST':
+        username = request.POST['username']
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            return JsonResponse({'status': 'Invalid user'}, status=400)
+
         ct_image = request.FILES['image']
         latest_version = ModelVersion.objects.latest('created_at')
 
-        model = BPNSGM_CycleGAN()
+        with keras.utils.custom_object_scope(custom_objects):
+            model = keras.models.load_model('global_model/bpnsgm_ct_to_mri.h5')
+
         model.compile(
             g_optimizer=tf.keras.optimizers.Adam(2e-4, beta_1=0.5),
             d_optimizer=tf.keras.optimizers.Adam(2e-4, beta_1=0.5)
         )
-        model.load_weights(latest_version.model_file.path)
 
-        # Preprocess
         img = Image.open(ct_image).resize((256, 256))
         img_arr = np.array(img) / 127.5 - 1.0
         img_arr = img_arr[np.newaxis, ...]
 
-        # Predict
         pred = model.predict(img_arr)
         output = (pred[0] + 1.0) * 127.5
         output_img = Image.fromarray(np.uint8(output))
 
-        # Encode to base64
         buffer = io.BytesIO()
         output_img.save(buffer, format="PNG")
         encoded_img = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-        # Log inference
         InferenceLog.objects.create(version=latest_version)
 
         return JsonResponse({'mri_image': encoded_img})

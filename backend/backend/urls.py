@@ -16,9 +16,11 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from core.views import TriggerTrainingView
+from core.views import TriggerTrainingView,get_model,upload_weights
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/train/', TriggerTrainingView.as_view(), name='trigger-training'),
+    path('api/get_model/', get_model, name='get-model'),
+    path('api/upload_weights/', upload_weights, name='upload-weights'),
 ]
