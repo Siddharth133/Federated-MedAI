@@ -16,11 +16,15 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from core.views import TriggerTrainingView,get_model,upload_weights
+from core.views import train_model, get_model, upload_weights, aggregate_weights, convert_ct_to_mri, get_metrics, get_training_progress
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/train/', TriggerTrainingView.as_view(), name='trigger-training'),
+    path('api/train/', train_model, name='train-model'),
     path('api/get_model/', get_model, name='get-model'),
     path('api/upload_weights/', upload_weights, name='upload-weights'),
+    path('api/aggregate_weights/', aggregate_weights, name='aggregate-weights'),
+    path('api/convert_ct_to_mri/', convert_ct_to_mri, name='convert-ct-to-mri'),
+    path('api/get_metrics/', get_metrics, name='get-metrics'),
+    path('api/get_training_progress/', get_training_progress, name='get_training_progress'),
 ]
