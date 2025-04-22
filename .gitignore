@@ -1,6 +1,5 @@
 venv
 .vscode/
 .dist/
-model
 bpnsgm_ct_to_mri.h5
 client_weights/
