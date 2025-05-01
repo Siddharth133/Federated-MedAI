@@ -3,3 +3,4 @@ venv
 .dist/
 bpnsgm_ct_to_mri.h5
 client_weights/
+tf-env
